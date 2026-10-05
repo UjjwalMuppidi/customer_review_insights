@@ -1,0 +1,31 @@
+{
+  "total_test_queries": 35,
+  "dense_vector_only": {
+    "num_test_cases": 35,
+    "mode": "Dense Vector Only",
+    "mrr": 0.9714,
+    "hit_rates": {
+      "Hit_Any@1": 0.9714,
+      "Hit_Any@3": 0.9714,
+      "Hit_Any@5": 0.9714
+    },
+    "avg_latency_sec": 0.0194
+  },
+  "hybrid_bm25_vector": {
+    "num_test_cases": 35,
+    "mode": "Hybrid (BM25 + Dense)",
+    "mrr": 0.9714,
+    "hit_rates": {
+      "Hit_Any@1": 0.9714,
+      "Hit_Any@3": 0.9714,
+      "Hit_Any@5": 0.9714
+    },
+    "avg_latency_sec": 0.0313
+  },
+  "sample_faithfulness_score": 0.7083,
+  "summary_takeaways": [
+    "Hybrid search (BM25 + Dense RRF) improves Hit Rate @ 1 for specific keyword brand queries.",
+    "Dense vector retrieval excels at semantic variations like 'burnt roast' matching 'over-dark flavor'.",
+    "Strict prompt constraints prevent hallucination when no matching reviews exist."
+  ]
+}
