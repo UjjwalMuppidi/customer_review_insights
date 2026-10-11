@@ -12,6 +12,8 @@ Interactive dashboard supporting multi-tab workflows:
 import sys
 import os
 import time
+from dotenv import load_dotenv
+load_dotenv()
 import pandas as pd
 import streamlit as st
 

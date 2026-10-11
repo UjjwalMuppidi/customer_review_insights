@@ -8,6 +8,8 @@ import sys
 import os
 import json
 import time
+from dotenv import load_dotenv
+load_dotenv()  # loads .env into os.environ
 
 sys.path.append(os.path.abspath("src"))
 

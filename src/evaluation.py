@@ -474,16 +474,25 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no extr
         raw_response = None
 
         if gemini_key:
-            try:
-                from google import genai
-                client = genai.Client(api_key=gemini_key)
-                resp = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=judge_prompt
-                )
-                raw_response = resp.text
-            except Exception as e:
-                print(f"[LLM-as-Judge] Gemini error: {e}")
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            for attempt in range(3):
+                try:
+                    resp = client.models.generate_content(
+                        model="gemini-3.8-flash",
+                        contents=judge_prompt
+                    )
+                    raw_response = resp.text
+                    break
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        wait = 12 * (attempt + 1)
+                        print(f"[LLM-as-Judge] Rate limit hit. Waiting {wait}s before retry {attempt+1}/3...")
+                        time.sleep(wait)
+                    else:
+                        print(f"[LLM-as-Judge] Gemini error: {e}")
+                        break
 
         if raw_response is None and groq_key:
             try:
@@ -608,8 +617,10 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no extr
         relevance_scores = []
         per_query_results = []
 
+        cached_rag_results = []
         for case in eval_cases:
             rag_res = self.pipeline.answer_query(case["question"], top_k=5, use_hybrid=True)
+            cached_rag_results.append(rag_res)
             answer = rag_res["answer"]
             sources = rag_res["context_sources"]
 
@@ -629,10 +640,10 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no extr
                 "relevance": rel["score"]
             })
 
-        # -- LLM-as-Judge on subset --
+        # -- LLM-as-Judge on subset (reusing cached answers to save API quota) --
         judge_results = []
-        for case in eval_cases[:run_judge_on]:
-            rag_res = self.pipeline.answer_query(case["question"], top_k=5, use_hybrid=True)
+        for idx, case in enumerate(eval_cases[:run_judge_on]):
+            rag_res = cached_rag_results[idx]
             judge = self.llm_as_judge(case["question"], rag_res["answer"], rag_res["context_sources"])
             judge_results.append({
                 "id": case["id"],

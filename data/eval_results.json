@@ -15,7 +15,7 @@
         "Ctx_Precision@3": 1.0,
         "Ctx_Precision@5": 1.0
       },
-      "avg_latency_sec": 0.015
+      "avg_latency_sec": 0.0148
     },
     "hybrid_bm25_vector": {
       "num_test_cases": 35,
@@ -31,13 +31,13 @@
         "Ctx_Precision@3": 1.0,
         "Ctx_Precision@5": 1.0
       },
-      "avg_latency_sec": 0.0289
+      "avg_latency_sec": 0.0286
     }
   },
   "generation": {
-    "avg_faithfulness": 0.663,
-    "avg_completeness": 0.4333,
-    "avg_answer_relevance": 0.5236
+    "avg_faithfulness": 0.6241,
+    "avg_completeness": 0.4667,
+    "avg_answer_relevance": 0.5696
   },
   "llm_judge": {
     "num_judged": 3,
@@ -89,35 +89,35 @@
     {
       "id": 1,
       "question": "What do people complain about regarding DarkRoast coffee packaging?",
-      "faithfulness": 0.6964,
-      "completeness": 0.6667,
+      "faithfulness": 0.5556,
+      "completeness": 0.3333,
       "relevance": 0.5
     },
     {
       "id": 2,
       "question": "Are there any Keurig K-Cup compatibility issues with coffee pods?",
-      "faithfulness": 0.687,
-      "completeness": 0.5,
-      "relevance": 0.4
+      "faithfulness": 0.4324,
+      "completeness": 1.0,
+      "relevance": 0.9
     },
     {
       "id": 3,
       "question": "Why are customers unhappy about expiration dates on food packages?",
-      "faithfulness": 0.6724,
-      "completeness": 0.5,
-      "relevance": 0.3333
+      "faithfulness": 0.4286,
+      "completeness": 1.0,
+      "relevance": 0.8889
     },
     {
       "id": 4,
       "question": "What issues do pet owners report about KibbleKing dog food?",
-      "faithfulness": 0.6372,
-      "completeness": 0.0,
-      "relevance": 0.3333
+      "faithfulness": 0.4,
+      "completeness": 0.5,
+      "relevance": 0.8889
     },
     {
       "id": 5,
       "question": "Do customers like GreenLeaf green tea flavor?",
-      "faithfulness": 0.6727,
+      "faithfulness": 0.1875,
       "completeness": 0.5,
       "relevance": 0.6667
     },

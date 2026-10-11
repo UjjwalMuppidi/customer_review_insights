@@ -158,23 +158,32 @@ Your goal is to answer the user's question accurately using ONLY the customer re
 
     def call_llm(self, prompt: str) -> str:
         """
-        Calls Gemini, Groq, or provides a smart extractive fallback answer.
+        Calls Gemini (with retry on rate-limit), Groq, or extractive fallback.
         """
+        import time as _time
         gemini_key = self.api_key or os.getenv("GEMINI_API_KEY")
         groq_key = os.getenv("GROQ_API_KEY")
         
-        # Try Google Gemini if key available
+        # Try Google Gemini with retry on 429
         if gemini_key:
-            try:
-                from google import genai
-                client = genai.Client(api_key=gemini_key)
-                response = client.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt
-                )
-                return response.text
-            except Exception as e:
-                print(f"[RAG Pipeline] Gemini API call error: {e}. Trying fallback...")
+            from google import genai
+            client = genai.Client(api_key=gemini_key)
+            for attempt in range(3):
+                try:
+                    response = client.models.generate_content(
+                        model="gemini-3.8-flash",
+                        contents=prompt
+                    )
+                    return response.text
+                except Exception as e:
+                    err_str = str(e)
+                    if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                        wait = 15 * (attempt + 1)  # 15s, 30s, 45s
+                        print(f"[RAG Pipeline] Rate limited. Waiting {wait}s before retry {attempt+2}/3...")
+                        _time.sleep(wait)
+                    else:
+                        print(f"[RAG Pipeline] Gemini error: {e}. Trying fallback...")
+                        break
                 
         # Try Groq if key available
         if groq_key:
