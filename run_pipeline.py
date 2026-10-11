@@ -57,11 +57,15 @@ def main():
     print("\nAnswer:\n", rag_result["answer"])
     print("\nMetrics:", rag_result["metrics"])
     
-    # Stage 6: RAG Evaluation Benchmark
-    print("\n[STAGE 6] Evaluation Benchmark (35 Test Cases)...")
+    # Stage 6: Comprehensive RAG Evaluation Benchmark
+    print("\n[STAGE 6] Comprehensive Evaluation Benchmark (35 Test Cases)...")
     evaluator = RAGEvaluator(pipeline)
-    eval_res = evaluator.run_full_benchmark()
-    print("Evaluation Results Summary:", json.dumps(eval_res["hybrid_bm25_vector"], indent=2))
+    eval_res = evaluator.run_full_benchmark(run_judge_on=3)
+    print("Evaluation Results Summary:", json.dumps({
+        "retrieval": eval_res["retrieval"]["hybrid_bm25_vector"],
+        "generation": eval_res["generation"],
+        "llm_judge_avg": eval_res["llm_judge"]["avg_scores"]
+    }, indent=2, default=str))
     
     # Stretch Goal: Fine-Tuned Model Comparison
     print("\n[STRETCH GOAL] Fine-Tuning & RAG Comparison Matrix...")

@@ -24,6 +24,7 @@ from vector_store import FAISSVectorStore, ChromaVectorStore
 from rag_pipeline import RAGPipeline
 from evaluation import RAGEvaluator
 from fine_tune import FineTunedReviewClassifier, get_rag_vs_finetuning_comparison
+from analytics import ReviewAnalytics
 
 # Page Configuration
 st.set_page_config(
@@ -115,12 +116,13 @@ st.markdown('<div class="main-title">🛍️ Customer Review Insights Assistant<
 st.markdown('<div class="sub-title">Powered by RAG, Hybrid Retrieval (BM25 + FAISS), and Evaluation</div>', unsafe_allow_html=True)
 
 # Tabs
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "💬 RAG Chat Assistant",
     "🔍 Vector Search Explorer",
     "📊 Data Quality & Preprocessing",
     "📈 Evaluation Benchmark",
-    "🎯 Stretch Goal: RAG vs Fine-Tuning"
+    "🎯 Stretch Goal: RAG vs Fine-Tuning",
+    "🧠 Semantic Topic Clustering"
 ])
 
 
@@ -220,30 +222,124 @@ with tab3:
 
 # --- TAB 4: EVALUATION BENCHMARK DASHBOARD ---
 with tab4:
-    st.subheader("Stage 6 RAG Evaluation Suite")
-    st.write("Quantitative assessment measuring Hit Rate @ K, MRR, and Faithfulness across a 35-question test suite.")
-    
-    if st.button("Run Full 35-Question Benchmark"):
-        with st.spinner("Running retrieval evaluation suite..."):
+    st.subheader("Stage 6: Comprehensive RAG Evaluation Suite")
+    st.write("Quantitative assessment across **6 metric dimensions**: Retrieval, Faithfulness, Completeness, Answer Relevance, Context Precision, and LLM-as-Judge.")
+
+    eval_col1, eval_col2 = st.columns(2)
+    with eval_col1:
+        judge_count = st.slider("LLM-as-Judge queries (0 = skip)", 0, 15, 5)
+    with eval_col2:
+        st.info("💡 Set `GEMINI_API_KEY` in sidebar for real LLM-as-Judge scoring. Without it, heuristic fallback is used.")
+
+    if st.button("🚀 Run Full 35-Question Benchmark", type="primary"):
+        with st.spinner("Running comprehensive evaluation suite (retrieval + generation + judge)..."):
             evaluator = RAGEvaluator(pipeline)
-            eval_res = evaluator.run_full_benchmark()
-            
-            st.markdown("### 📊 Retrieval Hit Rate Comparison")
-            
-            h_df = pd.DataFrame([
-                {"Metric": "Hit Rate @ 1", "Dense Vector Only": eval_res["dense_vector_only"]["hit_rates"]["Hit_Any@1"], "Hybrid (BM25+Vector)": eval_res["hybrid_bm25_vector"]["hit_rates"]["Hit_Any@1"]},
-                {"Metric": "Hit Rate @ 3", "Dense Vector Only": eval_res["dense_vector_only"]["hit_rates"]["Hit_Any@3"], "Hybrid (BM25+Vector)": eval_res["hybrid_bm25_vector"]["hit_rates"]["Hit_Any@3"]},
-                {"Metric": "Hit Rate @ 5", "Dense Vector Only": eval_res["dense_vector_only"]["hit_rates"]["Hit_Any@5"], "Hybrid (BM25+Vector)": eval_res["hybrid_bm25_vector"]["hit_rates"]["Hit_Any@5"]},
-                {"Metric": "Mean Reciprocal Rank (MRR)", "Dense Vector Only": eval_res["dense_vector_only"]["mrr"], "Hybrid (BM25+Vector)": eval_res["hybrid_bm25_vector"]["mrr"]}
+            eval_res = evaluator.run_full_benchmark(run_judge_on=judge_count)
+
+            # ---- Section 1: Retrieval Metrics ----
+            st.markdown("---")
+            st.markdown("### 📡 1. Retrieval Metrics")
+            dense = eval_res["retrieval"]["dense_vector_only"]
+            hybrid = eval_res["retrieval"]["hybrid_bm25_vector"]
+
+            ret_df = pd.DataFrame([
+                {"Metric": "Hit Rate @ 1", "Dense Vector": dense["hit_rates"]["Hit_Any@1"], "Hybrid (BM25+Vector)": hybrid["hit_rates"]["Hit_Any@1"]},
+                {"Metric": "Hit Rate @ 3", "Dense Vector": dense["hit_rates"]["Hit_Any@3"], "Hybrid (BM25+Vector)": hybrid["hit_rates"]["Hit_Any@3"]},
+                {"Metric": "Hit Rate @ 5", "Dense Vector": dense["hit_rates"]["Hit_Any@5"], "Hybrid (BM25+Vector)": hybrid["hit_rates"]["Hit_Any@5"]},
+                {"Metric": "MRR", "Dense Vector": dense["mrr"], "Hybrid (BM25+Vector)": hybrid["mrr"]},
+                {"Metric": "Context Precision @ 5", "Dense Vector": dense["context_precision"]["Ctx_Precision@5"], "Hybrid (BM25+Vector)": hybrid["context_precision"]["Ctx_Precision@5"]},
+                {"Metric": "Avg Latency (sec)", "Dense Vector": dense["avg_latency_sec"], "Hybrid (BM25+Vector)": hybrid["avg_latency_sec"]},
             ])
-            st.table(h_df)
-            
-            st.markdown("### 🔒 Faithfulness & Groundedness")
-            st.write(f"**Sample Groundedness Score**: {eval_res['sample_faithfulness_score']*100:.1f}% grounded in context sources.")
-            
-            st.markdown("### 💡 Key Takeaways")
+            st.table(ret_df)
+
+            # ---- Section 2: Generation Quality Metrics ----
+            st.markdown("---")
+            st.markdown("### 🔬 2. Generation Quality Metrics (Averaged over 35 queries)")
+            gen = eval_res["generation"]
+
+            g1, g2, g3 = st.columns(3)
+            g1.metric("🔒 Faithfulness", f"{gen['avg_faithfulness']*100:.1f}%",
+                       help="Fraction of answer content words grounded in retrieved context. Higher = less hallucination.")
+            g2.metric("✅ Completeness", f"{gen['avg_completeness']*100:.1f}%",
+                       help="Fraction of expected answer points covered by the generated answer.")
+            g3.metric("🎯 Answer Relevance", f"{gen['avg_answer_relevance']*100:.1f}%",
+                       help="Token overlap between question keywords and answer content.")
+
+            # ---- Section 3: LLM-as-Judge ----
+            st.markdown("---")
+            judge_data = eval_res["llm_judge"]
+            llm_tag = "✅ LLM Scoring" if judge_data["llm_used"] else "⚠️ Heuristic Fallback"
+            st.markdown(f"### 🧑‍⚖️ 3. LLM-as-Judge Rubric Scores ({llm_tag})")
+
+            if judge_data["num_judged"] > 0:
+                avg = judge_data["avg_scores"]
+                j1, j2, j3, j4, j5 = st.columns(5)
+                j1.metric("Faithfulness", f"{avg.get('faithfulness', 0)}/5")
+                j2.metric("Completeness", f"{avg.get('completeness', 0)}/5")
+                j3.metric("Relevance", f"{avg.get('relevance', 0)}/5")
+                j4.metric("Clarity", f"{avg.get('clarity', 0)}/5")
+                j5.metric("🏆 Overall", f"{avg.get('average', 0)}/5")
+
+                with st.expander("Per-Query Judge Breakdown"):
+                    judge_display = []
+                    for j in judge_data["per_query"]:
+                        judge_display.append({
+                            "ID": j.get("id"),
+                            "Question": j.get("question", "")[:60],
+                            "Faith.": j.get("faithfulness"),
+                            "Compl.": j.get("completeness"),
+                            "Relev.": j.get("relevance"),
+                            "Clarity": j.get("clarity"),
+                            "Avg": j.get("average"),
+                        })
+                    st.dataframe(pd.DataFrame(judge_display), use_container_width=True)
+                    # Show justification for first entry
+                    if judge_data["per_query"]:
+                        st.caption(f"**Sample justification**: {judge_data['per_query'][0].get('justification', 'N/A')}")
+            else:
+                st.write("LLM-as-Judge was skipped (set slider > 0 to enable).")
+
+            # ---- Section 4: Per-Query Breakdown Table ----
+            st.markdown("---")
+            st.markdown("### 📋 4. Per-Query Metric Breakdown")
+            pq_df = pd.DataFrame(eval_res["per_query_breakdown"])
+            pq_df.columns = ["ID", "Question", "Faithfulness", "Completeness", "Relevance"]
+            st.dataframe(pq_df, use_container_width=True, height=400)
+
+            # ---- Section 5: Takeaways ----
+            st.markdown("---")
+            st.markdown("### 💡 5. Key Takeaways")
             for t in eval_res["summary_takeaways"]:
                 st.write(f"- {t}")
+
+    # ---- Single Query Deep Eval ----
+    st.markdown("---")
+    st.markdown("### 🔍 Deep-Dive: Evaluate a Single Query")
+    single_q = st.text_input("Enter a query to evaluate in depth:", value="What do people complain about regarding coffee packaging?", key="eval_single_q")
+    if st.button("Run Single-Query Evaluation"):
+        with st.spinner("Evaluating..."):
+            evaluator = RAGEvaluator(pipeline)
+            sq_res = evaluator.evaluate_single_query(single_q)
+
+            st.markdown(f"**Answer:** {sq_res['answer'][:500]}...")
+
+            sq_m = sq_res["metrics"]
+            s1, s2, s3 = st.columns(3)
+            s1.metric("Faithfulness", f"{sq_m['faithfulness']['score']*100:.1f}%")
+            s2.metric("Answer Relevance", f"{sq_m['answer_relevance']['score']*100:.1f}%")
+            s3.metric("Sources Retrieved", sq_res["num_sources"])
+
+            if sq_m["faithfulness"]["unsupported_tokens"]:
+                st.warning(f"Unsupported tokens in answer: `{', '.join(sq_m['faithfulness']['unsupported_tokens'][:10])}`")
+
+            judge = sq_m["llm_judge"]
+            st.markdown("**LLM-as-Judge Scores:**")
+            jc1, jc2, jc3, jc4 = st.columns(4)
+            jc1.metric("Faith.", f"{judge.get('faithfulness', 'N/A')}/5")
+            jc2.metric("Compl.", f"{judge.get('completeness', 'N/A')}/5")
+            jc3.metric("Relev.", f"{judge.get('relevance', 'N/A')}/5")
+            jc4.metric("Clarity", f"{judge.get('clarity', 'N/A')}/5")
+            st.caption(f"Justification: {judge.get('justification', 'N/A')}")
 
 
 # --- TAB 5: STRETCH GOAL - RAG VS FINE-TUNING ---
@@ -273,3 +369,25 @@ with tab5:
     st.markdown("### 🎯 Decision Framework")
     for item in comp_data["recommendation_framework"]:
         st.write(f"- {item}")
+
+
+# --- TAB 6: SEMANTIC TOPIC CLUSTERING ---
+with tab6:
+    st.subheader("Semantic Topic & Complaint Theme Clustering")
+    st.write("Automatically group customer reviews into K-Means vector clusters to discover common complaint themes.")
+    
+    num_k = st.slider("Select Number of Clusters", 2, 6, 4)
+    if st.button("Run Vector Topic Clustering"):
+        with st.spinner("Clustering review embeddings..."):
+            analytics = ReviewAnalytics(embedder=embedder)
+            cluster_res = analytics.cluster_reviews(df, num_clusters=num_k)
+            
+            st.markdown(f"**Analyzed {cluster_res['num_reviews_analyzed']} reviews across {cluster_res['num_clusters']} clusters:**")
+            
+            for c in cluster_res["clusters"]:
+                with st.expander(f"Cluster #{c['cluster_id']} | Count: {c['count']} reviews | Avg Rating: {c['avg_rating']}/5"):
+                    st.write(f"**Dominant Sentiment**: `{c['dominant_sentiment']}`")
+                    st.write(f"**Top Key Terms**: `{', '.join(c['top_keywords'])}`")
+                    st.write("**Sample Reviews in Cluster:**")
+                    for text in c["sample_reviews"]:
+                        st.write(f"- \"{text[:150]}...\"")
